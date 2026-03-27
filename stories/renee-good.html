@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blame Tree: Renée Good → Airport Lines</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; padding: 20px; line-height: 1.5; max-width: 900px; margin: 0 auto; }
+  h1 { color: #3fb950; margin-bottom: 5px; font-size: 1.4em; }
+  .subtitle { color: #8b949e; margin-bottom: 10px; font-size: 0.9em; }
+  .methodology { color: #8b949e; font-size: 0.8em; margin-bottom: 20px; background: #161b22; padding: 12px; border-radius: 8px; border: 1px solid #21262d; }
+  .methodology strong { color: #c9d1d9; }
+  .legend { display: flex; gap: 15px; margin-bottom: 20px; font-size: 0.8em; color: #8b949e; flex-wrap: wrap; }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .legend .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .dot-actual { background: #f85149; }
+  .dot-alt { background: #3fb950; }
+  .node { margin-left: 20px; border-left: 2px solid #21262d; padding-left: 14px; margin-top: 6px; }
+  .decision { cursor: pointer; padding: 10px 14px; border-radius: 8px; margin: 6px 0; transition: all 0.15s; }
+  .decision:hover { filter: brightness(1.15); }
+  .decision.actual { background: #1c1214; border: 1px solid #f85149; }
+  .decision.alt { background: #111827; border: 1px solid #3fb950; border-style: dashed; }
+  .decision.endpoint { background: #161b22; border: 1px solid #30363d; cursor: default; }
+  .actor { font-size: 0.75em; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; }
+  .action { font-size: 0.95em; margin-top: 2px; }
+  .tag { display: inline-block; font-size: 0.65em; padding: 1px 6px; border-radius: 3px; margin-left: 6px; vertical-align: middle; }
+  .tag-actual { background: #f85149; color: white; }
+  .tag-alt { background: #1a7f37; color: white; }
+  .tag-end { background: #30363d; color: #8b949e; }
+  .scores { display: flex; gap: 10px; margin-top: 6px; font-size: 0.75em; flex-wrap: wrap; }
+  .score-box { padding: 2px 8px; border-radius: 4px; }
+  .score-cum { background: #1c1214; color: #f85149; border: 1px solid #f85149; }
+  .score-cum-alt { background: #111827; color: #3fb950; border: 1px solid #3fb950; }
+  .score-dev { background: #1a1500; color: #f0883e; border: 1px solid #f0883e; }
+  .children { display: none; }
+  .children.open { display: block; }
+  .expand-hint { font-size: 0.7em; color: #484f58; float: right; margin-top: 2px; }
+  .fork-label { font-size: 0.75em; color: #3fb950; margin: 12px 0 4px 0; font-weight: 600; }
+  .summary-box { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px; margin-top: 20px; }
+  .summary-box h3 { color: #3fb950; font-size: 0.9em; margin-bottom: 8px; }
+  .summary-box table { width: 100%; font-size: 0.85em; }
+  .summary-box td { padding: 3px 8px; }
+  .bar { height: 8px; border-radius: 4px; display: inline-block; background: #f85149; }
+</style>
+</head>
+<body>
+
+<h1>The Blame Tree</h1>
+<p class="subtitle">From a shooting in Minneapolis to a 3-hour airport line. Click any node to see what happened next — and what the same actor could have done instead.</p>
+
+<div class="methodology">
+  <strong>How to read this:</strong> At each fork, one actor faces a choice. The red path is what they did. The blue path is what they could have done instead. <strong>Cumulative harm</strong> tracks the running total of damage along each path. <strong>This choice added</strong> shows how much this specific decision contributed. At the endpoints, compare the totals — the gap is the avoidable damage.<br><br>
+  <strong>Harm scale:</strong> 1 death = 100 · institutional crisis = 30 · 50K workers unpaid = 25 · millions inconvenienced = 20 · political crisis = 15 · rights violation = 5 · escalation = 3 · obstruction = 1. You may disagree with these weights. That's the point.
+</div>
+
+<div class="legend">
+  <span><span class="dot dot-actual"></span> What they did</span>
+  <span><span class="dot dot-alt"></span> What they could have done</span>
+</div>
+
+<div id="tree"></div>
+
+<div class="summary-box" id="blame-summary" style="display:none;">
+  <h3>Blame Ledger (updates as you explore)</h3>
+  <table id="blame-table"></table>
+  <div style="margin-top:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+    <a href="https://x.com/intent/tweet?text=This%20interactive%20blame%20tree%20traces%20the%20Ren%C3%A9e%20Good%20shooting%20all%20the%20way%20to%20your%20airport%20line%20%E2%80%94%20with%20harm%20scores%20at%20every%20decision.&url=" style="background:#161b22;color:#3fb950;padding:6px 14px;border-radius:20px;font-size:0.85em;border:1px solid #3fb950;text-decoration:none;">Share this tree on X</a>
+    <a href="https://x.com/intent/follow?screen_name=Neural_Ned" style="background:#e6edf3;color:#0d1117;padding:6px 14px;border-radius:20px;font-weight:600;font-size:0.85em;text-decoration:none;">Follow @Neural_Ned</a>
+  </div>
+</div>
+
+<div style="max-width:900px;margin:20px auto;padding:0 20px;">
+  <a href="../index.html" style="color:#3fb950;font-size:0.85em;text-decoration:none;">← Back to all stories</a>
+</div>
+
+<script src="tree-data.js"></script>
+<script>
+var blameAccumulator = {};
+
+function addBlame(who, amount) {
+  if (!who || amount <= 0) return;
+  blameAccumulator[who] = (blameAccumulator[who] || 0) + amount;
+  renderBlameSummary();
+}
+
+function renderBlameSummary() {
+  var total = 0;
+  for (var k in blameAccumulator) total += blameAccumulator[k];
+  if (total === 0) { document.getElementById('blame-summary').style.display = 'none'; return; }
+  document.getElementById('blame-summary').style.display = 'block';
+  var entries = [];
+  for (var k in blameAccumulator) entries.push([k, blameAccumulator[k]]);
+  entries.sort(function(a,b) { return b[1] - a[1]; });
+  var maxVal = entries[0][1];
+  var html = '';
+  for (var i = 0; i < entries.length; i++) {
+    var actor = entries[i][0], val = entries[i][1];
+    var pct = Math.round((val / total) * 100);
+    var barW = Math.round((val / maxVal) * 200);
+    html += '<tr><td style="white-space:nowrap;color:#c9d1d9">' + actor + '</td><td style="width:50px;text-align:right;color:#f0883e;font-weight:bold">' + pct + '%</td><td style="width:50px;text-align:right;color:#8b949e">' + val + ' pts</td><td><span class="bar" style="width:' + barW + 'px"></span></td></tr>';
+  }
+  document.getElementById('blame-table').innerHTML = html;
+}
+
+function renderFork(fork, container, cumHarm) {
+  var label = document.createElement('div');
+  label.className = 'fork-label';
+  label.textContent = '\u2442 ' + fork.actor + ': ' + fork.label;
+  container.appendChild(label);
+
+  for (var ci = 0; ci < fork.choices.length; ci++) {
+    var choice = fork.choices[ci];
+    var newCum = cumHarm + (choice.added || 0);
+    var wrapper = document.createElement('div');
+    wrapper.className = 'node';
+    var decision = document.createElement('div');
+    decision.className = 'decision ' + (choice.type === 'alt' ? 'alt' : 'actual');
+
+    var tagText = choice.type === 'alt' ? 'ALTERNATIVE' : 'WHAT HAPPENED';
+    var tagClass = choice.type === 'alt' ? 'tag-alt' : 'tag-actual';
+
+    var hasNext = choice.next && choice.next.forks && choice.next.forks.length > 0;
+    var hasEndpoint = !!choice.endpoint;
+    var expandable = hasNext || hasEndpoint;
+
+    var scoreHtml = '';
+    if (choice.type !== 'alt') {
+      scoreHtml = '<div class="scores"><span class="score-box score-cum">Cumulative harm: ' + newCum + '</span>';
+      if (choice.added > 0) scoreHtml += '<span class="score-box score-dev">This choice: +' + choice.added + '</span>';
+      scoreHtml += '</div>';
+    } else {
+      scoreHtml = '<div class="scores"><span class="score-box score-cum-alt">Cumulative harm: ' + newCum + '</span></div>';
+    }
+
+    decision.innerHTML = '<div class="actor">' + fork.actor + ' <span class="tag ' + tagClass + '">' + tagText + '</span>' + (expandable ? '<span class="expand-hint">\u25B8</span>' : '') + '</div><div class="action">' + choice.action + '</div>' + scoreHtml;
+
+    wrapper.appendChild(decision);
+
+    if (expandable) {
+      var childContainer = document.createElement('div');
+      childContainer.className = 'children';
+
+      if (hasEndpoint) {
+        var ep = document.createElement('div');
+        ep.className = 'node';
+        var epClass = choice.type === 'alt' ? 'score-cum-alt' : 'score-cum';
+        ep.innerHTML = '<div class="decision endpoint"><div class="actor">End State <span class="tag tag-end">ENDPOINT</span></div><div class="action">' + choice.endpoint + '</div><div class="scores"><span class="score-box ' + epClass + '">Final harm: ' + newCum + '</span></div></div>';
+        childContainer.appendChild(ep);
+      }
+
+      if (hasNext) {
+        for (var fi = 0; fi < choice.next.forks.length; fi++) {
+          renderFork(choice.next.forks[fi], childContainer, newCum);
+        }
+      }
+
+      wrapper.appendChild(childContainer);
+
+      (function(dec, cc, ch, nc) {
+        var opened = false;
+        dec.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var isOpen = cc.classList.toggle('open');
+          var hint = dec.querySelector('.expand-hint');
+          if (hint) hint.textContent = isOpen ? '\u25BE' : '\u25B8';
+          if (isOpen && !opened) {
+            if (ch.blame && ch.added > 0) addBlame(ch.blame, ch.added);
+            opened = true;
+          }
+        });
+      })(decision, childContainer, choice, newCum);
+    }
+
+    container.appendChild(wrapper);
+  }
+}
+
+var treeContainer = document.getElementById('tree');
+for (var i = 0; i < tree.forks.length; i++) {
+  renderFork(tree.forks[i], treeContainer, 0);
+}
+</script>
+
+</body>
+</html>
